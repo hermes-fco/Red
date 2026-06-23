@@ -382,21 +382,23 @@ multi migration-apply(
         my $file = %m<file>;
         note "Applying migration v$ver: { $file.relative($*CWD) }";
 
-        get-RED-DB.execute: "BEGIN";
-        for $file.lines -> $sql {
-            my $trimmed = $sql.trim;
-            next if $trimmed eq '' || $trimmed.starts-with('--');
-            get-RED-DB.execute: $trimmed;
-        }
-        # Record the migration
-        record-migration($config, $ver, $file.basename);
-        get-RED-DB.execute: "COMMIT";
-        note "  ✓ Migration v$ver applied successfully.";
-        CATCH {
-            default {
-                note "  ✗ Migration v$ver FAILED: { .message }";
-                get-RED-DB.execute: "ROLLBACK";
-                die "Migration v$ver failed. Aborting.";
+        {
+            my $*RED-DB = get-RED-DB.begin;
+            for $file.lines -> $sql {
+                my $trimmed = $sql.trim;
+                next if $trimmed eq '' || $trimmed.starts-with('--');
+                get-RED-DB.execute: $trimmed;
+            }
+            # Record the migration
+            record-migration($config, $ver, $file.basename);
+            get-RED-DB.commit;
+            note "  ✓ Migration v$ver applied successfully.";
+            CATCH {
+                default {
+                    note "  ✗ Migration v$ver FAILED: { .message }";
+                    get-RED-DB.rollback;
+                    die "Migration v$ver failed. Aborting.";
+                }
             }
         }
     }

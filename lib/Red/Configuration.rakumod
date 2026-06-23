@@ -59,11 +59,12 @@ method global-down-sql(Str $driver --> IO::Path) {
 }
 
 #| Store a snapshot of a model file into the versioned model storage.
-#| Uses a microsecond timestamp + random suffix for unique, ordered filenames.
+#| Uses an ordered timestamp for unique, sortable filenames.
+#| TODO: Consider using IdClass (github.com/FCO/IdClass) for more compact ordered IDs.
 #| Returns the path where it was stored.
 method store-model(IO() $source-file, Str $model-name --> IO::Path) {
     $!model-storage-path.mkdir: :p;
-    my $suffix = (now * 1_000_000).Int ~ '-' ~ (^0xFFFF).pick.fmt('%04x');
+    my $suffix = DateTime.now.posix.fmt('%s') ~ '.' ~ (now * 1_000_000 % 1_000_000).Int.fmt('%06d');
     my $dest = $!model-storage-path.add: "{ $model-name }-{ $suffix }.rakumod";
     $source-file.copy: $dest;
     $dest
